@@ -1,0 +1,89 @@
+{
+  "title": "Atypical Presentation of Anti-NMDAR Encephalitis in an Adolescent: A Case Report",
+  "keywords": [
+    "Anti-NMDAR encephalitis",
+    "Autoimmune encephalitis",
+    "Psychosis",
+    "Immunotherapy",
+    "Pediatrics"
+  ],
+  "abstract": {
+    "introduction": "Anti-N-methyl-D-aspartate receptor (NMDAR) encephalitis is a rare severe autoimmune disorder with prominent psychiatric presentation.",
+    "symptoms": "A 16-year-old female presented with acute behavioral disturbance, visual hallucinations, catatonia, and autonomic instability.",
+    "diagnoses_interventions_outcomes": "CSF positive for GluN1-specific IgG antibodies. Treated with IV methylprednisolone, IVIG, and rituximab with full cognitive recovery at 6 months.",
+    "conclusion": "Early suspicion and prompt multi-tiered immunotherapy are critical for favorable outcomes in pediatric autoimmune encephalitis."
+  },
+  "introduction": "Anti-NMDAR encephalitis, first described in 2007 by Dalmau et al., represents a critical differential diagnosis in acute psychiatric presentations among youth. Prompt diagnosis reduces neurological morbidity.",
+  "patient_information": {
+    "age": 16,
+    "sex": "Female",
+    "ethnicity": "Hispanic",
+    "occupation": "High school student",
+    "chief_complaint": "Acute onset auditory hallucinations, extreme agitation, and memory deficits lasting 5 days.",
+    "history": "No prior psychiatric history, no illicit substance use, non-contributory family medical history.",
+    "past_interventions": "Initially prescribed olanzapine 5 mg daily by emergency psychiatric services with no symptom resolution."
+  },
+  "clinical_findings": "Temperature 38.6 C, HR 122 bpm, BP 142/90 mmHg. Patient was disoriented, catatonic, exhibiting facial dyskinesias and choreoathetoid arm movements. Cranial nerves intact.",
+  "timeline": [
+    {
+      "relative_day": 1,
+      "time_point": "Day 1",
+      "event": "Acute psychiatric onset with insomnia and paranoia."
+    },
+    {
+      "relative_day": 5,
+      "time_point": "Day 5",
+      "event": "Hospital admission with catatonia and hyperthermia."
+    },
+    {
+      "relative_day": 7,
+      "time_point": "Day 7",
+      "event": "Lumbar puncture performed; CSF anti-NMDAR antibodies detected."
+    },
+    {
+      "relative_day": 8,
+      "time_point": "Day 8",
+      "event": "Initiated pulse IV methylprednisolone 1g daily and IVIG 2g/kg over 5 days."
+    },
+    {
+      "relative_day": 15,
+      "time_point": "Day 15",
+      "event": "Second-line therapy with rituximab 375 mg/m2 weekly x 4 doses."
+    },
+    {
+      "relative_day": 30,
+      "time_point": "Day 30",
+      "event": "Significant neurological improvement and discharge to rehabilitation."
+    },
+    {
+      "relative_day": 180,
+      "time_point": "Day 180 (Month 6)",
+      "event": "Complete cognitive recovery with return to academic baseline."
+    }
+  ],
+  "diagnostic_assessment": {
+    "diagnostic_methods": "Brain MRI showed subtle bilateral hippocampal FLAIR hyperintensity. EEG showed diffuse slowing with extreme delta brush pattern. CSF testing confirmed high-titer IgG against NR1 subunit of NMDAR.",
+    "challenges": "Initial presentation closely mimicked primary acute psychosis, causing a 4-day delay before neurology consultation.",
+    "differential_diagnosis": "Primary psychiatric psychosis, viral encephalitis (HSV/VZV), toxic ingestion, lupus cerebritis.",
+    "prognosis": "Modified Rankin Scale (mRS) score 5 at nadir; anticipated favorable recovery given early immunotherapy."
+  },
+  "therapeutic_intervention": {
+    "treatment": "High-dose IV methylprednisolone, intravenous immunoglobulin (IVIG), and rituximab monoclonal antibody.",
+    "administration": "Methylprednisolone 1g IV daily for 5 days; IVIG 0.4 g/kg/day for 5 days; Rituximab 375 mg/m2 IV weekly for 4 weeks.",
+    "changes": "Escalated to rituximab on Day 15 due to persistent dyskinesias and autonomic instability despite first-line agents."
+  },
+  "follow_up_and_outcomes": {
+    "outcomes": "At 6-month follow-up, patient achieved complete symptom resolution (mRS score 0) with normal MoCA cognitive screening (30/30).",
+    "follow_up_tests": "Follow-up brain MRI at 3 months demonstrated complete resolution of FLAIR hyperintensities. Repeat CSF at 6 months showed negative antibody titers.",
+    "adherence": "Patient completed all 4 scheduled rituximab infusions without missed doses.",
+    "adverse_events": "No infusion-related adverse reactions or infectious complications observed."
+  },
+  "discussion": {
+    "strengths_and_limitations": "Strengths: Rapid antibody identification and prompt escalation to second-line rituximab. Limitation: Initial delay in LP due to psychiatric containment.",
+    "literature_review": "Our findings align with international consensus guidelines (Titulaer et al., Lancet Neurol 2013) highlighting the efficacy of early B-cell depletion.",
+    "scientific_rationale": "Autoantibody-mediated internalization of NMDAR clusters disrupts synaptic plasticity, which is reversible upon antibody clearance.",
+    "take_away_lessons": "New-onset psychiatric symptoms accompanied by autonomic instability or dyskinesias in adolescents warrant urgent CSF autoantibody screening."
+  },
+  "patient_perspective": "The patient and her parents reflected: 'We felt helpless when the psychiatric medications failed, but seeing her regain full personality and return to school within six months felt like a miracle.'",
+  "informed_consent": "Written informed consent for publication of this clinical case and accompanying radiological images was obtained from the patient's legal guardian. Ethics committee approval was granted by the Institutional Review Board (IRB-2024-PED-041)."
+}
