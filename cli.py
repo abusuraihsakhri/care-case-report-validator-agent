@@ -332,9 +332,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     # interactive command
     subparsers.add_parser("interactive", help="Interactive section-by-section audit")
 
-    # sample command
-    samp_p = subparsers.add_parser("sample", help="Export sample compliant CARE JSON template")
-    samp_p.add_argument("--output", "-o", default="sample_care_report.json", help="Path to write sample JSON")
+    # batch command
+    batch_p = subparsers.add_parser("batch", help="Batch process case report records from CSV")
+    batch_p.add_argument("-i", "--input", required=True, help="Path to input CSV")
+    batch_p.add_argument("-o", "--output", default="care_audit_results.csv", help="Path to output CSV")
 
     args = parser.parse_args(argv)
 
@@ -344,6 +345,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return run_benchmark(args)
     elif args.command == "interactive":
         return run_interactive(args)
+    elif args.command == "batch":
+        return run_batch(args)
     elif args.command == "sample":
         sample = get_sample_compliant_report()
         with open(args.output, "w", encoding="utf-8") as f:
@@ -359,5 +362,54 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 1
 
 
+def run_batch(args: argparse.Namespace) -> int:
+    """Batch process case reports from CSV."""
+    import csv
+    validator = CARECaseReportValidator()
+    with open(args.input, mode="r", encoding="utf-8-sig") as f:
+        reader = csv.DictReader(f)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+
+    out_fields = fieldnames + ["compliance_score", "compliance_tier", "items_met", "items_total", "timeline_valid", "phi_violations_count"]
+    out_rows = []
+    for r in rows:
+        title = r.get("title") or r.get("case_id") or "Case Report"
+        abstract = r.get("abstract") or r.get("summary") or ""
+        clinical = r.get("clinical_findings") or r.get("findings") or ""
+        timeline = r.get("timeline") or ""
+        diag = r.get("diagnostic_assessment") or ""
+        tx = r.get("therapeutic_intervention") or ""
+        consent = r.get("informed_consent") or "Consent obtained."
+        
+        payload = {
+            "title": title,
+            "abstract": abstract,
+            "clinical_findings": clinical,
+            "timeline": timeline,
+            "diagnostic_assessment": diag,
+            "therapeutic_intervention": tx,
+            "informed_consent": consent,
+        }
+        report = validator.validate(payload)
+        row_dict = dict(r)
+        row_dict["compliance_score"] = f"{report.overall_compliance_score:.1f}%"
+        row_dict["compliance_tier"] = report.compliance_tier.value
+        row_dict["items_met"] = report.items_met
+        row_dict["items_total"] = report.items_total
+        row_dict["timeline_valid"] = report.timeline_valid
+        row_dict["phi_violations_count"] = len(report.phi_violations)
+        out_rows.append(row_dict)
+
+    with open(args.output, mode="w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=out_fields)
+        writer.writeheader()
+        writer.writerows(out_rows)
+
+    print(f"Processed {len(out_rows)} case reports into '{args.output}'.")
+    return 0
+
+
 if __name__ == "__main__":
     sys.exit(main())
+

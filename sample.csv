@@ -1,4 +1,5 @@
-case_id,patient_synthetic_id,metric_primary,metric_secondary,is_stat,status_flag
-CASE-001,SYNTH-01,25.4,14.2,True,DISCORDANT
-CASE-002,SYNTH-02,12.0,4.1,False,NORMAL
-CASE-003,SYNTH-03,32.0,18.5,True,SUSPICIOUS
+case_id,title,abstract,clinical_findings,timeline,diagnostic_assessment,therapeutic_intervention,informed_consent
+CASE_REPORT_01,Fulminant Myocarditis Following Immune Checkpoint Inhibitor Therapy: A Case Report,Acute heart failure in a melanoma patient on nivolumab.,Severe biventricular failure with troponin elevation.,Day 1: Nivolumab infusion; Day 14: Dyspnea and shock; Day 15: Biopsy confirmation; Day 28: Recovery.,Cardiac MRI and endomyocardial biopsy showing lymphocytic infiltration.,High-dose intravenous methylprednisolone 1000 mg daily and abatacept.,Written informed consent obtained from patient.
+CASE_REPORT_02,Refractory Autoimmune Encephalitis with Extreme Delta Brush: A Case Report,Anti-NMDAR encephalitis responsive to second-line rituximab.,Psychosis catatonia and autonomic instability.,Day 1: Behavioral changes; Day 7: LP positive; Day 21: Full recovery.,CSF GluN1 IgG antibody positivity and EEG extreme delta brush.,IVIG pulse corticosteroids and rituximab.,Written informed consent obtained from guardian.
+CASE_REPORT_03,Post-Transplant Lymphoproliferative Disorder Presenting as Gastric Ulcer: A Case Report,Rare gastric PTLD in a renal transplant recipient.,Epigastric pain melena and weight loss.,Day 1: Melena; Day 3: Endoscopy biopsy; Day 10: Rituximab started; Day 90: Complete remission.,EGD biopsy demonstrating EBV-positive diffuse large B-cell lymphoma.,Reduction of tacrolimus and 4 weekly cycles of rituximab.,Written informed consent obtained from patient.
+
