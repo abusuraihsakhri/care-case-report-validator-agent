@@ -22,3 +22,4 @@ care_audit_results.csv
 .DS_Store
 Thumbs.db
 
+node_modules/
