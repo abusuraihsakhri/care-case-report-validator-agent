@@ -303,10 +303,21 @@ This case demonstrates reversible ventricular dysfunction. Clinicians must rule 
 Written informed consent was obtained from the patient.
 """
         report = self.validator.validate(md_text)
-        self.assertGreaterEqual(report.overall_compliance_score, 75.0)
         self.assertEqual(report.manuscript_title, "Rare Presentation of Takotsubo Cardiomyopathy: A Case Report")
+
         item5a = next(it for it in report.item_evaluations if it.item_id == "5a")
         self.assertTrue(any("Age=68" in finding for finding in item5a.findings))
+
+        # Free-text parsing must not award unrelated sub-items merely because
+        # their parent section is present.
+        item5c = next(it for it in report.item_evaluations if it.item_id == "5c")
+        item8c = next(it for it in report.item_evaluations if it.item_id == "8c")
+        item10c = next(it for it in report.item_evaluations if it.item_id == "10c")
+        item10d = next(it for it in report.item_evaluations if it.item_id == "10d")
+        self.assertEqual(item5c.status, ComplianceStatus.UNMET)
+        self.assertEqual(item8c.status, ComplianceStatus.UNMET)
+        self.assertEqual(item10c.status, ComplianceStatus.UNMET)
+        self.assertEqual(item10d.status, ComplianceStatus.MET)
 
     # 12. Serialization & Formatting
     def test_report_dict_serialization(self):
