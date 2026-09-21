@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -229,8 +230,18 @@ def run_interactive(args: argparse.Namespace) -> int:
     if ";" in timeline_str:
         for idx, part in enumerate(timeline_str.split(";")):
             part = part.strip()
-            if part:
-                timeline.append({"relative_day": idx + 1, "time_point": f"Step {idx + 1}", "event": part})
+            if not part:
+                continue
+            match = re.match(r"^(?:day\s*)?(-?\d+)\s*[:\-–—]\s*(.+)$", part, re.IGNORECASE)
+            if match:
+                day = int(match.group(1))
+                timeline.append({
+                    "relative_day": day,
+                    "time_point": f"Day {day}",
+                    "event": match.group(2).strip(),
+                })
+            else:
+                timeline.append({"time_point": f"Step {idx + 1}", "event": part})
     elif timeline_str:
         timeline = timeline_str
 
@@ -358,12 +369,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Sample compliant CARE report written to {args.output}")
         return 0
     else:
-        # Default to interactive or help
-        if len(sys.argv) == 1:
-            parser.print_help()
-            return 0
         parser.print_help()
-        return 1
+        return 0
 
 
 def run_batch(args: argparse.Namespace) -> int:
