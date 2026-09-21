@@ -83,7 +83,7 @@ class TestCAREValidator(unittest.TestCase):
         self.assertEqual(item2.status, ComplianceStatus.PARTIALLY_MET)
 
     def test_keywords_comma_separated_string(self):
-        data = {"keywords": "Liver, Jaundice, Biopsy, Steroids"}
+        data = {"keywords": "Liver, Jaundice, Biopsy, Case report"}
         report = self.validator.validate(data)
         item2 = next(it for it in report.item_evaluations if it.item_id == "2")
         self.assertEqual(item2.status, ComplianceStatus.MET)
