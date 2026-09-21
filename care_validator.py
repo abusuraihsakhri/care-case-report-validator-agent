@@ -1065,7 +1065,7 @@ class CARECaseReportValidator:
         """Return only sentences that contain at least one requested cue."""
         sentences = [
             part.strip()
-            for part in re.split(r"(?<=[.!?;])\\s+|\\n+", text)
+            for part in re.split(r"(?<=[.!?;])\s+|\n+", text)
             if part.strip()
         ]
         matched = [
@@ -1092,17 +1092,17 @@ class CARECaseReportValidator:
                 target_dict["abstract"] = abstract
 
             cues = {
-                "introduction": [r"\\b(unique|rare|unusual|novel|literature|previously|first)\\b"],
-                "symptoms": [r"\\b(presented|presentation|symptom|complaint|finding|examination)\\b"],
-                "diagnoses_interventions_outcomes": [r"\\b(diagnos|treat|therap|intervention|outcome|recover|improv|resolv)\\w*\\b"],
-                "conclusion": [r"\\b(conclusion|lesson|highlight|suggest|demonstrat|importance|important|should|recommend)\\w*\\b"],
+                "introduction": [r"\b(unique|rare|unusual|novel|literature|previously|first)\b"],
+                "symptoms": [r"\b(presented|presentation|symptom|complaint|finding|examination)\b"],
+                "diagnoses_interventions_outcomes": [r"\b(diagnos|treat|therap|intervention|outcome|recover|improv|resolv)\w*\b"],
+                "conclusion": [r"\b(conclusion|lesson|highlight|suggest|demonstrat|importance|important|should|recommend)\w*\b"],
             }
             for key, patterns in cues.items():
                 self._merge_section_value(abstract, key, self._matching_sentences(text, patterns))
 
         elif section == "patient_information":
             age_match = re.search(
-                r"\\b(?:(\\d{1,3})\\s*[- ]?years?[- ]?old|aged\\s+(\\d{1,3}))\\b",
+                r"\b(?:(\d{1,3})\s*[- ]?years?[- ]?old|aged\s+(\d{1,3}))\b",
                 text,
                 re.IGNORECASE,
             )
@@ -1113,9 +1113,9 @@ class CARECaseReportValidator:
                     age = candidate
 
             sex = None
-            if re.search(r"\\b(female|woman|girl)\\b", text, re.IGNORECASE):
+            if re.search(r"\b(female|woman|girl)\b", text, re.IGNORECASE):
                 sex = "Female"
-            elif re.search(r"\\b(male|man|boy)\\b", text, re.IGNORECASE):
+            elif re.search(r"\b(male|man|boy)\b", text, re.IGNORECASE):
                 sex = "Male"
 
             patient = target_dict.get("patient_information")
@@ -1129,11 +1129,11 @@ class CARECaseReportValidator:
 
             chief = self._matching_sentences(
                 text,
-                [r"\\b(presented|presentation|complaint|symptom|concern|pain|fever|seizure)\\w*\\b"],
+                [r"\b(presented|presentation|complaint|symptom|concern|pain|fever|seizure)\w*\b"],
             )
             history = self._matching_sentences(
                 text,
-                [r"\\b(history|past|previous|prior|family|social|psychosocial|comorbid)\\w*\\b"],
+                [r"\b(history|past|previous|prior|family|social|psychosocial|comorbid)\w*\b"],
             )
             self._merge_section_value(patient, "chief_complaint", chief)
             self._merge_section_value(patient, "history", history)
@@ -1149,7 +1149,7 @@ class CARECaseReportValidator:
                 "differential_diagnosis",
                 self._matching_sentences(
                     text,
-                    [r"\\b(differential|considered|excluded|rule[sd]? out|alternative diagnos)\\w*\\b"],
+                    [r"\b(differential|considered|excluded|rule[sd]? out|alternative diagnos)\w*\b"],
                 ),
             )
             self._merge_section_value(
@@ -1157,7 +1157,7 @@ class CARECaseReportValidator:
                 "challenges",
                 self._matching_sentences(
                     text,
-                    [r"\\b(challenge|delay|uncertain|difficult|atypical)\\w*\\b"],
+                    [r"\b(challenge|delay|uncertain|difficult|atypical)\w*\b"],
                 ),
             )
 
@@ -1173,8 +1173,8 @@ class CARECaseReportValidator:
                 self._matching_sentences(
                     text,
                     [
-                        r"\\b\\d+(?:\\.\\d+)?\\s*(?:mg|g|mcg|µg|ml|units?|mg/kg|g/kg)\\b",
-                        r"\\b(daily|weekly|twice|intravenous|intravenously|oral|orally|route|duration)\\b",
+                        r"\b\d+(?:\.\d+)?\s*(?:mg|g|mcg|µg|ml|units?|mg/kg|g/kg)\b",
+                        r"\b(daily|weekly|twice|intravenous|intravenously|oral|orally|route|duration)\b",
                     ],
                 ),
             )
@@ -1183,7 +1183,7 @@ class CARECaseReportValidator:
                 "changes",
                 self._matching_sentences(
                     text,
-                    [r"\\b(changed|switched|escalat|de-escalat|discontinued|stopped|because|due to)\\w*\\b"],
+                    [r"\b(changed|switched|escalat|de-escalat|discontinued|stopped|because|due to)\w*\b"],
                 ),
             )
 
@@ -1198,7 +1198,7 @@ class CARECaseReportValidator:
                 "adherence",
                 self._matching_sentences(
                     text,
-                    [r"\\b(adher|compliance|missed|completed|tolerat)\\w*\\b"],
+                    [r"\b(adher|compliance|missed|completed|tolerat)\w*\b"],
                 ),
             )
             self._merge_section_value(
@@ -1206,7 +1206,7 @@ class CARECaseReportValidator:
                 "adverse_events",
                 self._matching_sentences(
                     text,
-                    [r"\\b(adverse|complication|side effect|reaction|unanticipated)\\w*\\b"],
+                    [r"\b(adverse|complication|side effect|reaction|unanticipated)\w*\b"],
                 ),
             )
 
@@ -1220,20 +1220,20 @@ class CARECaseReportValidator:
                 "literature_review",
                 self._matching_sentences(
                     text,
-                    [r"\\b(literature|study|studies|reported|previous|evidence|reference|et al)\\b"],
+                    [r"\b(literature|study|studies|reported|previous|evidence|reference|et al)\b"],
                 ),
             )
             self._merge_section_value(
                 discussion,
                 "strengths_and_limitations",
-                self._matching_sentences(text, [r"\\b(strength|limitation)\\w*\\b"]),
+                self._matching_sentences(text, [r"\b(strength|limitation)\w*\b"]),
             )
             self._merge_section_value(
                 discussion,
                 "scientific_rationale",
                 self._matching_sentences(
                     text,
-                    [r"\\b(mechanism|rationale|because|pathophysi|mediated|supports)\\w*\\b"],
+                    [r"\b(mechanism|rationale|because|pathophysi|mediated|supports)\w*\b"],
                 ),
             )
             self._merge_section_value(
@@ -1241,7 +1241,7 @@ class CARECaseReportValidator:
                 "take_away_lessons",
                 self._matching_sentences(
                     text,
-                    [r"\\b(lesson|take-away|takeaway|conclusion|should|recommend|highlight|importance|important|warrant)\\w*\\b"],
+                    [r"\b(lesson|take-away|takeaway|conclusion|should|recommend|highlight|importance|important|warrant)\w*\b"],
                 ),
             )
 
