@@ -58,7 +58,12 @@ function applyTheme(theme) {
 }
 
 function initializeTheme() {
-  const saved = localStorage.getItem("care-review-theme");
+  let saved = null;
+  try {
+    saved = localStorage.getItem("care-review-theme");
+  } catch (error) {
+    console.warn("Theme preference storage is unavailable.", error);
+  }
   applyTheme(saved === "dark" ? "dark" : "light");
 }
 
@@ -209,8 +214,12 @@ async function analyze() {
     console.error(error);
     showError(`Analysis failed: ${error.message || String(error)}`);
   } finally {
-    if (pyodide && pyodide.globals.has("browser_payload")) {
-      pyodide.globals.delete("browser_payload");
+    if (pyodide) {
+      try {
+        pyodide.globals.delete("browser_payload");
+      } catch (error) {
+        console.debug("Temporary browser payload was already cleared.", error);
+      }
     }
     setBusy(false);
   }
@@ -283,7 +292,11 @@ function downloadText(filename, content, type) {
 elements.themeToggle.addEventListener("click", () => {
   const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
   applyTheme(next);
-  localStorage.setItem("care-review-theme", next);
+  try {
+    localStorage.setItem("care-review-theme", next);
+  } catch (error) {
+    console.warn("Theme preference could not be saved.", error);
+  }
 });
 
 elements.manuscriptInput.addEventListener("input", () => setBusy(false));
