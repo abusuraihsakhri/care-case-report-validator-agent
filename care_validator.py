@@ -472,6 +472,18 @@ class TimelineChronologyAuditor:
                 is_valid = False
             else:
                 findings.append("Narrative timeline description present.")
+        else:
+            is_valid = False
+            findings.append(f"Unsupported timeline type: {type(timeline_data).__name__}.")
+            alerts.append(
+                AuditAlert(
+                    severity=AlertSeverity.WARNING,
+                    category="TIMELINE_FORMAT",
+                    message="Timeline must be a narrative string or a list of milestone objects.",
+                    field_name="timeline",
+                    suggestion="Provide a timeline narrative or ordered milestone list."
+                )
+            )
 
         return is_valid, findings, alerts
 
@@ -640,6 +652,8 @@ class CARECaseReportValidator:
             keywords = data.get("keywords") or data.get("key_words") or []
             if isinstance(keywords, str):
                 keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+            elif not isinstance(keywords, (list, tuple)):
+                keywords = [str(keywords)] if keywords else []
             count = len(keywords)
             normalized_keywords = [str(k).strip().lower() for k in keywords]
             has_case_report_keyword = "case report" in normalized_keywords
@@ -1046,17 +1060,49 @@ class CARECaseReportValidator:
 
         return parsed
 
+    @staticmethod
+    def _matching_sentences(text: str, patterns: List[str]) -> str:
+        """Return only sentences that contain at least one requested cue."""
+        sentences = [
+            part.strip()
+            for part in re.split(r"(?<=[.!?;])\\s+|\\n+", text)
+            if part.strip()
+        ]
+        matched = [
+            sentence
+            for sentence in sentences
+            if any(re.search(pattern, sentence, re.IGNORECASE) for pattern in patterns)
+        ]
+        return " ".join(matched)
+
+    @staticmethod
+    def _merge_section_value(container: Dict[str, Any], key: str, value: str) -> None:
+        """Append non-empty parsed text without discarding an earlier section."""
+        value = value.strip()
+        if not value:
+            return
+        existing = str(container.get(key) or "").strip()
+        container[key] = f"{existing} {value}".strip() if existing else value
+
     def _assign_buffer(self, target_dict: Dict[str, Any], section: str, text: str) -> None:
         if section == "abstract":
-            target_dict["abstract"] = {
-                "introduction": text,
-                "symptoms": text,
-                "diagnoses_interventions_outcomes": text,
-                "conclusion": text,
+            abstract = target_dict.get("abstract")
+            if not isinstance(abstract, dict):
+                abstract = {}
+                target_dict["abstract"] = abstract
+
+            cues = {
+                "introduction": [r"\\b(unique|rare|unusual|novel|literature|previously|first)\\b"],
+                "symptoms": [r"\\b(presented|presentation|symptom|complaint|finding|examination)\\b"],
+                "diagnoses_interventions_outcomes": [r"\\b(diagnos|treat|therap|intervention|outcome|recover|improv|resolv)\\w*\\b"],
+                "conclusion": [r"\\b(conclusion|lesson|highlight|suggest|demonstrat|importance|important|should|recommend)\\w*\\b"],
             }
+            for key, patterns in cues.items():
+                self._merge_section_value(abstract, key, self._matching_sentences(text, patterns))
+
         elif section == "patient_information":
             age_match = re.search(
-                r"\b(?:(\d{1,3})\s*[- ]?years?[- ]?old|aged\s+(\d{1,3}))\b",
+                r"\\b(?:(\\d{1,3})\\s*[- ]?years?[- ]?old|aged\\s+(\\d{1,3}))\\b",
                 text,
                 re.IGNORECASE,
             )
@@ -1067,39 +1113,138 @@ class CARECaseReportValidator:
                     age = candidate
 
             sex = None
-            if re.search(r"\b(female|woman|girl)\b", text, re.IGNORECASE):
+            if re.search(r"\\b(female|woman|girl)\\b", text, re.IGNORECASE):
                 sex = "Female"
-            elif re.search(r"\b(male|man|boy)\b", text, re.IGNORECASE):
+            elif re.search(r"\\b(male|man|boy)\\b", text, re.IGNORECASE):
                 sex = "Male"
 
-            target_dict["patient_information"] = {
-                "age": age,
-                "sex": sex,
-                "chief_complaint": text,
-                "history": text,
-            }
+            patient = target_dict.get("patient_information")
+            if not isinstance(patient, dict):
+                patient = {}
+                target_dict["patient_information"] = patient
+            if age is not None:
+                patient["age"] = age
+            if sex is not None:
+                patient["sex"] = sex
+
+            chief = self._matching_sentences(
+                text,
+                [r"\\b(presented|presentation|complaint|symptom|concern|pain|fever|seizure)\\w*\\b"],
+            )
+            history = self._matching_sentences(
+                text,
+                [r"\\b(history|past|previous|prior|family|social|psychosocial|comorbid)\\w*\\b"],
+            )
+            self._merge_section_value(patient, "chief_complaint", chief)
+            self._merge_section_value(patient, "history", history)
+
         elif section == "diagnostic_assessment":
-            target_dict["diagnostic_assessment"] = {
-                "diagnostic_methods": text,
-                "differential_diagnosis": text,
-            }
+            diagnostic = target_dict.get("diagnostic_assessment")
+            if not isinstance(diagnostic, dict):
+                diagnostic = {}
+                target_dict["diagnostic_assessment"] = diagnostic
+            self._merge_section_value(diagnostic, "diagnostic_methods", text)
+            self._merge_section_value(
+                diagnostic,
+                "differential_diagnosis",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(differential|considered|excluded|rule[sd]? out|alternative diagnos)\\w*\\b"],
+                ),
+            )
+            self._merge_section_value(
+                diagnostic,
+                "challenges",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(challenge|delay|uncertain|difficult|atypical)\\w*\\b"],
+                ),
+            )
+
         elif section == "therapeutic_intervention":
-            target_dict["therapeutic_intervention"] = {
-                "treatment": text,
-                "administration": text,
-            }
+            intervention = target_dict.get("therapeutic_intervention")
+            if not isinstance(intervention, dict):
+                intervention = {}
+                target_dict["therapeutic_intervention"] = intervention
+            self._merge_section_value(intervention, "treatment", text)
+            self._merge_section_value(
+                intervention,
+                "administration",
+                self._matching_sentences(
+                    text,
+                    [
+                        r"\\b\\d+(?:\\.\\d+)?\\s*(?:mg|g|mcg|µg|ml|units?|mg/kg|g/kg)\\b",
+                        r"\\b(daily|weekly|twice|intravenous|intravenously|oral|orally|route|duration)\\b",
+                    ],
+                ),
+            )
+            self._merge_section_value(
+                intervention,
+                "changes",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(changed|switched|escalat|de-escalat|discontinued|stopped|because|due to)\\w*\\b"],
+                ),
+            )
+
         elif section == "follow_up_and_outcomes":
-            target_dict["follow_up_and_outcomes"] = {
-                "outcomes": text,
-                "adherence": text,
-                "adverse_events": text,
-            }
+            follow_up = target_dict.get("follow_up_and_outcomes")
+            if not isinstance(follow_up, dict):
+                follow_up = {}
+                target_dict["follow_up_and_outcomes"] = follow_up
+            self._merge_section_value(follow_up, "outcomes", text)
+            self._merge_section_value(
+                follow_up,
+                "adherence",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(adher|compliance|missed|completed|tolerat)\\w*\\b"],
+                ),
+            )
+            self._merge_section_value(
+                follow_up,
+                "adverse_events",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(adverse|complication|side effect|reaction|unanticipated)\\w*\\b"],
+                ),
+            )
+
         elif section == "discussion":
-            target_dict["discussion"] = {
-                "literature_review": text,
-                "strengths_and_limitations": text,
-                "take_away_lessons": text,
-            }
+            discussion = target_dict.get("discussion")
+            if not isinstance(discussion, dict):
+                discussion = {}
+                target_dict["discussion"] = discussion
+            self._merge_section_value(
+                discussion,
+                "literature_review",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(literature|study|studies|reported|previous|evidence|reference|et al)\\b"],
+                ),
+            )
+            self._merge_section_value(
+                discussion,
+                "strengths_and_limitations",
+                self._matching_sentences(text, [r"\\b(strength|limitation)\\w*\\b"]),
+            )
+            self._merge_section_value(
+                discussion,
+                "scientific_rationale",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(mechanism|rationale|because|pathophysi|mediated|supports)\\w*\\b"],
+                ),
+            )
+            self._merge_section_value(
+                discussion,
+                "take_away_lessons",
+                self._matching_sentences(
+                    text,
+                    [r"\\b(lesson|take-away|takeaway|conclusion|should|recommend|highlight|importance|important|warrant)\\w*\\b"],
+                ),
+            )
+
         elif section == "timeline":
             target_dict["timeline"] = text
         else:
