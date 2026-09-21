@@ -1043,17 +1043,16 @@ class CARECaseReportValidator:
                     current_buffer = []
                 current_section = matched_sec
             else:
-                if not current_section and stripped and not parsed["title"]:
+                if stripped.lower().startswith("keywords:") or stripped.lower().startswith("key words:"):
+                    kw_part = stripped.split(":", 1)[1]
+                    parsed["keywords"] = [k.strip() for k in kw_part.split(",") if k.strip()]
+                elif not current_section and stripped and not parsed["title"]:
                     if stripped.startswith("# "):
                         parsed["title"] = stripped[2:].strip()
                     elif "case report" in stripped.lower() or "patient" in stripped.lower():
                         parsed["title"] = stripped
                 else:
-                    if stripped.lower().startswith("keywords:") or stripped.lower().startswith("key words:"):
-                        kw_part = stripped.split(":", 1)[1]
-                        parsed["keywords"] = [k.strip() for k in kw_part.split(",") if k.strip()]
-                    else:
-                        current_buffer.append(line)
+                    current_buffer.append(line)
 
         if current_section and current_buffer:
             self._assign_buffer(parsed, current_section, "\n".join(current_buffer).strip())
@@ -1102,7 +1101,7 @@ class CARECaseReportValidator:
 
         elif section == "patient_information":
             age_match = re.search(
-                r"\b(?:(\d{1,3})\s*[- ]?years?[- ]?old|aged\s+(\d{1,3}))\b",
+                r"\b(?:(\d{1,3})\s*[-–— ]?years?[-–— ]?old|aged\s+(\d{1,3}))\b",
                 text,
                 re.IGNORECASE,
             )
