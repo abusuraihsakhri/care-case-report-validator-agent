@@ -2,7 +2,7 @@
 """
 CARE Case Report Validator - Command Line Interface
 ===================================================
-Production CLI for evaluating clinical case report drafts against the CARE 2013 Checklist.
+Command-line tools for rule-based review of case report drafts against the CARE 2013 checklist.
 
 Usage:
     python cli.py validate --file case_report.json
@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from typing import Any, Dict, List, Optional
 
@@ -32,7 +33,7 @@ def get_sample_compliant_report() -> Dict[str, Any]:
     """Returns a fully compliant reference CARE case report."""
     return {
         "title": "Atypical Presentation of Anti-NMDAR Encephalitis in an Adolescent: A Case Report",
-        "keywords": ["Anti-NMDAR encephalitis", "Autoimmune encephalitis", "Psychosis", "Immunotherapy", "Pediatrics"],
+        "keywords": ["Anti-NMDAR encephalitis", "Autoimmune encephalitis", "Psychosis", "Immunotherapy", "Case report"],
         "abstract": {
             "introduction": "Anti-N-methyl-D-aspartate receptor (NMDAR) encephalitis is a rare severe autoimmune disorder with prominent psychiatric presentation.",
             "symptoms": "A 16-year-old female presented with acute behavioral disturbance, visual hallucinations, catatonia, and autonomic instability.",
@@ -105,7 +106,7 @@ def run_validate(args: argparse.Namespace) -> int:
 
     report = validator.validate(data)
 
-    if args.json:
+    if args.json or args.format == "json":
         out_json = json.dumps(report.to_dict(), indent=2)
         if args.output:
             with open(args.output, "w", encoding="utf-8") as out_f:
@@ -130,11 +131,11 @@ def run_validate(args: argparse.Namespace) -> int:
     print(f"  CARE 2013 CLINICAL CASE REPORT VALIDATION AUDIT")
     print("=" * 70)
     print(f"Manuscript: {report.manuscript_title}")
-    print(f"Compliance Score: {report.overall_compliance_score:.1f}% [{report.compliance_tier.value}]")
+    print(f"Heuristic Checklist Coverage: {report.overall_compliance_score:.1f}% [{report.compliance_tier.value}]")
     print(f"Items Met: {report.items_met}/{report.items_total} | Partially Met: {report.items_partially_met} | Unmet: {report.items_unmet}")
     print(f"Timeline Valid: {'YES' if report.timeline_valid else 'NO / DEFICIENT'}")
     print("-" * 70)
-    print("SECTION COMPLIANCE BREAKDOWN:")
+    print("SECTION COVERAGE BREAKDOWN:")
     for sec, score in report.section_scores.items():
         bar = "#" * int(score / 5) + "." * (20 - int(score / 5))
         print(f"  {sec:<25} [{bar}] {score:>5.1f}%")
@@ -198,7 +199,7 @@ def run_benchmark(args: argparse.Namespace) -> int:
 
 def run_interactive(args: argparse.Namespace) -> int:
     print("=" * 70)
-    print("  CARE 2013 CASE REPORT INTERACTIVE AUDITOR")
+    print("  CARE 2013 CASE REPORT CHECKLIST REVIEW")
     print("=" * 70)
     print("Enter details for each section (press Enter to skip if not applicable):\n")
 
@@ -229,8 +230,18 @@ def run_interactive(args: argparse.Namespace) -> int:
     if ";" in timeline_str:
         for idx, part in enumerate(timeline_str.split(";")):
             part = part.strip()
-            if part:
-                timeline.append({"relative_day": idx + 1, "time_point": f"Step {idx + 1}", "event": part})
+            if not part:
+                continue
+            match = re.match(r"^(?:day\s*)?(-?\d+)\s*[:\-–—]\s*(.+)$", part, re.IGNORECASE)
+            if match:
+                day = int(match.group(1))
+                timeline.append({
+                    "relative_day": day,
+                    "time_point": f"Day {day}",
+                    "event": match.group(2).strip(),
+                })
+            else:
+                timeline.append({"time_point": f"Step {idx + 1}", "event": part})
     elif timeline_str:
         timeline = timeline_str
 
@@ -292,7 +303,7 @@ def run_interactive(args: argparse.Namespace) -> int:
     print("\n" + "=" * 70)
     print("  AUDIT RESULT")
     print("=" * 70)
-    print(f"Overall Compliance Score: {report.overall_compliance_score:.1f}% [{report.compliance_tier.value}]")
+    print(f"Heuristic Checklist Coverage: {report.overall_compliance_score:.1f}% [{report.compliance_tier.value}]")
     print(f"Items Met: {report.items_met}/{report.items_total} | Partially Met: {report.items_partially_met} | Unmet: {report.items_unmet}")
     print("\nSection Scores:")
     for sec, score in report.section_scores.items():
@@ -315,7 +326,7 @@ def run_interactive(args: argparse.Namespace) -> int:
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="CARE 2013 Case Report Validator Agent - Audit medical manuscripts for guideline compliance."
+        description="Review case-report drafts against CARE 2013 checklist criteria using deterministic heuristics."
     )
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -330,7 +341,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     subparsers.add_parser("benchmark", help="Run validation benchmarks")
 
     # interactive command
-    subparsers.add_parser("interactive", help="Interactive section-by-section audit")
+    subparsers.add_parser("interactive", help="Interactive section-by-section review")
+
+    # sample command
+    sample_p = subparsers.add_parser("sample", help="Write the bundled structured sample report to JSON")
+    sample_p.add_argument("-o", "--output", default="sample_care_report.json", help="Output JSON path")
 
     # batch command
     batch_p = subparsers.add_parser("batch", help="Batch process case report records from CSV")
@@ -354,12 +369,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Sample compliant CARE report written to {args.output}")
         return 0
     else:
-        # Default to interactive or help
-        if len(sys.argv) == 1:
-            parser.print_help()
-            return 0
         parser.print_help()
-        return 1
+        return 0
 
 
 def run_batch(args: argparse.Namespace) -> int:
@@ -371,7 +382,8 @@ def run_batch(args: argparse.Namespace) -> int:
         fieldnames = list(reader.fieldnames or [])
         rows = list(reader)
 
-    out_fields = fieldnames + ["compliance_score", "compliance_tier", "items_met", "items_total", "timeline_valid", "phi_violations_count"]
+    generated_fields = ["compliance_score", "compliance_tier", "items_met", "items_total", "timeline_valid", "phi_violations_count"]
+    out_fields = fieldnames + [name for name in generated_fields if name not in fieldnames]
     out_rows = []
     for r in rows:
         title = r.get("title") or r.get("case_id") or "Case Report"
@@ -380,11 +392,15 @@ def run_batch(args: argparse.Namespace) -> int:
         timeline = r.get("timeline") or ""
         diag = r.get("diagnostic_assessment") or ""
         tx = r.get("therapeutic_intervention") or ""
-        consent = r.get("informed_consent") or "Consent obtained."
-        
+        consent = r.get("informed_consent") or ""
+        keywords_raw = r.get("keywords") or r.get("key_words") or ""
+        keywords = [k.strip() for k in keywords_raw.split(",") if k.strip()] if keywords_raw else []
+
         payload = {
             "title": title,
-            "abstract": abstract,
+            "keywords": keywords,
+            "abstract": {"introduction": abstract} if abstract else {},
+            "introduction": r.get("introduction") or r.get("background") or "",
             "clinical_findings": clinical,
             "timeline": timeline,
             "diagnostic_assessment": diag,

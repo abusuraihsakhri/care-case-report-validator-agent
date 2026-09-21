@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """
-CARE Case Report Validator Agent
-================================
-A production-grade clinical compliance engine and multi-agent audit system
-for medical case report manuscripts adhering to the 13-item CARE 2013 Guidelines
-(Consensus-based Clinical Case Reporting Guideline Development).
+CARE 2013 case-report checklist reviewer.
+
+This module applies deterministic, rule-based checks to structured data or
+plain-text drafts. The numeric score and tier are repository-specific
+heuristics for checklist coverage; they are not part of the CARE guideline and
+must not be interpreted as clinical validation, publication readiness, or a
+formal privacy/de-identification determination.
 
 References:
 - Gagnier JJ, Kienle G, Altman DG, Moher D, Sox H, Riley D; CARE Group.
@@ -13,7 +15,6 @@ References:
 - Riley DS, Barber MS, Kienle GS, et al. CARE guidelines for case reports:
   explanation and elaboration document. J Clin Epidemiol. 2017;89:218-235.
 
-Author: Clinical AI & Domain Engineering
 License: MIT
 """
 
@@ -40,6 +41,8 @@ class ComplianceStatus(str, Enum):
 
 
 class ComplianceTier(str, Enum):
+    """Backward-compatible labels for repository-specific heuristic score bands."""
+
     FULLY_COMPLIANT = "FULLY_COMPLIANT"             # >= 90%
     SUBSTANTIALLY_COMPLIANT = "SUBSTANTIALLY_COMPLIANT" # 75% - 89%
     MODERATELY_COMPLIANT = "MODERATELY_COMPLIANT"     # 50% - 74%
@@ -165,7 +168,7 @@ CARE_CHECKLIST_SPEC: List[Dict[str, Any]] = [
         "section": "Keywords",
         "title": "Key Words (2 to 5 words)",
         "weight": 1.0,
-        "description": "Two to five key words that identify diagnoses, interventions, or key clinical features."
+        "description": "Two to five key words that identify diagnoses or interventions, including 'case report'."
     },
     {
         "item_id": "3a",
@@ -371,7 +374,11 @@ CARE_CHECKLIST_SPEC: List[Dict[str, Any]] = [
 # ==============================================================================
 
 class PHISecurityAuditor:
-    """Audits manuscripts for HIPAA Safe Harbor 18 Direct Identifiers."""
+    """Screens for a limited set of common direct-identifier patterns.
+
+    This is a conservative pattern screen, not a complete HIPAA Safe Harbor
+    implementation and not a de-identification certification.
+    """
 
     PHI_PATTERNS = [
         (r"\b\d{3}-\d{2}-\d{4}\b", "Social Security Number (SSN)", False),
@@ -395,7 +402,7 @@ class PHISecurityAuditor:
                         category="HIPAA_PHI_VIOLATION",
                         message=f"Potential protected health information detected: {desc} ({len(matches)} occurrence(s)).",
                         field_name="manuscript_body",
-                        suggestion="Anonymize or remove direct patient identifiers to comply with HIPAA Safe Harbor and CARE item 5a."
+                        suggestion="Review and remove or de-identify direct identifiers as appropriate. This pattern screen is not a HIPAA de-identification determination."
                     )
                 )
         return alerts
@@ -441,7 +448,7 @@ class TimelineChronologyAuditor:
                 prev_day = -999999
                 for idx, entry in enumerate(timeline_data):
                     if isinstance(entry, dict):
-                        day = entry.get("relative_day") or entry.get("day")
+                        day = entry.get("relative_day") if "relative_day" in entry else entry.get("day")
                         if day is not None:
                             try:
                                 day_num = int(day)
@@ -465,6 +472,18 @@ class TimelineChronologyAuditor:
                 is_valid = False
             else:
                 findings.append("Narrative timeline description present.")
+        else:
+            is_valid = False
+            findings.append(f"Unsupported timeline type: {type(timeline_data).__name__}.")
+            alerts.append(
+                AuditAlert(
+                    severity=AlertSeverity.WARNING,
+                    category="TIMELINE_FORMAT",
+                    message="Timeline must be a narrative string or a list of milestone objects.",
+                    field_name="timeline",
+                    suggestion="Provide a timeline narrative or ordered milestone list."
+                )
+            )
 
         return is_valid, findings, alerts
 
@@ -497,7 +516,7 @@ class CARECaseReportValidator:
         alerts: List[AuditAlert] = []
 
         # 1. PHI / Privacy Audit
-        phi_alerts = PHISecurityAuditor.audit_text(raw_text_corpus)
+        phi_alerts = PHISecurityAuditor.audit_text(raw_text_corpus) if self.phi_strict else []
         alerts.extend(phi_alerts)
         phi_violations = [a.message for a in phi_alerts]
 
@@ -605,17 +624,23 @@ class CARECaseReportValidator:
                 findings.append("No title provided.")
                 recommendations.append("Add a descriptive title incorporating the words 'Case Report' or 'Case Study'.")
             else:
-                has_case = any(w in title_text.lower() for w in ["case report", "case study", "case presentation"])
+                has_case_report = "case report" in title_text.lower()
+                has_case_variant = any(w in title_text.lower() for w in ["case study", "case presentation"])
                 has_substance = len(title_text.split()) >= 4
-                if has_case and has_substance:
+                if has_case_report and has_substance:
                     status = ComplianceStatus.MET
                     score = 1.0
                     findings.append(f"Title clearly states case report format: '{title_text}'")
-                elif has_case:
+                elif has_case_report:
                     status = ComplianceStatus.PARTIALLY_MET
                     score = 0.7
                     findings.append("Title identifies case report format but lacks specific disease/intervention details.")
                     recommendations.append("Specify the exact condition, presentation, or intervention in the title.")
+                elif has_case_variant:
+                    status = ComplianceStatus.PARTIALLY_MET
+                    score = 0.5
+                    findings.append("Title uses a case-study/case-presentation label rather than the CARE wording 'case report'.")
+                    recommendations.append("Use the words 'case report' in the manuscript title.")
                 else:
                     status = ComplianceStatus.PARTIALLY_MET
                     score = 0.4
@@ -627,25 +652,34 @@ class CARECaseReportValidator:
             keywords = data.get("keywords") or data.get("key_words") or []
             if isinstance(keywords, str):
                 keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+            elif not isinstance(keywords, (list, tuple)):
+                keywords = [str(keywords)] if keywords else []
             count = len(keywords)
-            if 2 <= count <= 5:
+            normalized_keywords = [str(k).strip().lower() for k in keywords]
+            has_case_report_keyword = "case report" in normalized_keywords
+            if 2 <= count <= 5 and has_case_report_keyword:
                 status = ComplianceStatus.MET
                 score = 1.0
-                findings.append(f"Provided {count} keywords: {', '.join(keywords)}.")
+                findings.append(f"Provided {count} keywords including 'case report': {', '.join(map(str, keywords))}.")
+            elif 2 <= count <= 5:
+                status = ComplianceStatus.PARTIALLY_MET
+                score = 0.8
+                findings.append(f"Provided {count} keywords but omitted the CARE-recommended keyword 'case report'.")
+                recommendations.append("Include 'case report' among the 2 to 5 keywords.")
             elif count > 5:
                 status = ComplianceStatus.PARTIALLY_MET
                 score = 0.8
                 findings.append(f"Provided {count} keywords (CARE recommends 2 to 5 keywords).")
-                recommendations.append("Refine keyword list to 2-5 standardized MeSH terms.")
+                recommendations.append("Refine the list to 2 to 5 relevant keywords and include 'case report'.")
             elif count == 1:
                 status = ComplianceStatus.PARTIALLY_MET
                 score = 0.5
                 findings.append("Only 1 keyword provided.")
-                recommendations.append("Provide 2 to 5 relevant medical keywords.")
+                recommendations.append("Provide 2 to 5 relevant keywords, including 'case report'.")
             else:
                 status = ComplianceStatus.UNMET
                 findings.append("No keywords provided.")
-                recommendations.append("Provide 2 to 5 key words identifying diagnoses or interventions.")
+                recommendations.append("Provide 2 to 5 key words identifying diagnoses or interventions, including 'case report'.")
 
         # ITEM 3a: Abstract - Introduction
         elif item_id == "3a":
@@ -1009,60 +1043,207 @@ class CARECaseReportValidator:
                     current_buffer = []
                 current_section = matched_sec
             else:
-                if not current_section and stripped and not parsed["title"]:
+                if stripped.lower().startswith("keywords:") or stripped.lower().startswith("key words:"):
+                    kw_part = stripped.split(":", 1)[1]
+                    parsed["keywords"] = [k.strip() for k in kw_part.split(",") if k.strip()]
+                elif not current_section and stripped and not parsed["title"]:
                     if stripped.startswith("# "):
                         parsed["title"] = stripped[2:].strip()
                     elif "case report" in stripped.lower() or "patient" in stripped.lower():
                         parsed["title"] = stripped
                 else:
-                    if stripped.lower().startswith("keywords:") or stripped.lower().startswith("key words:"):
-                        kw_part = stripped.split(":", 1)[1]
-                        parsed["keywords"] = [k.strip() for k in kw_part.split(",") if k.strip()]
-                    else:
-                        current_buffer.append(line)
+                    current_buffer.append(line)
 
         if current_section and current_buffer:
             self._assign_buffer(parsed, current_section, "\n".join(current_buffer).strip())
 
         return parsed
 
+    @staticmethod
+    def _matching_sentences(text: str, patterns: List[str]) -> str:
+        """Return only sentences that contain at least one requested cue."""
+        sentences = [
+            part.strip()
+            for part in re.split(r"(?<=[.!?;])\s+|\n+", text)
+            if part.strip()
+        ]
+        matched = [
+            sentence
+            for sentence in sentences
+            if any(re.search(pattern, sentence, re.IGNORECASE) for pattern in patterns)
+        ]
+        return " ".join(matched)
+
+    @staticmethod
+    def _merge_section_value(container: Dict[str, Any], key: str, value: str) -> None:
+        """Append non-empty parsed text without discarding an earlier section."""
+        value = value.strip()
+        if not value:
+            return
+        existing = str(container.get(key) or "").strip()
+        container[key] = f"{existing} {value}".strip() if existing else value
+
     def _assign_buffer(self, target_dict: Dict[str, Any], section: str, text: str) -> None:
         if section == "abstract":
-            target_dict["abstract"] = {
-                "introduction": text,
-                "symptoms": text,
-                "diagnoses_interventions_outcomes": text,
-                "conclusion": text,
+            abstract = target_dict.get("abstract")
+            if not isinstance(abstract, dict):
+                abstract = {}
+                target_dict["abstract"] = abstract
+
+            cues = {
+                "introduction": [r"\b(unique|rare|unusual|novel|literature|previously|first)\b"],
+                "symptoms": [r"\b(presented|presentation|symptom|complaint|finding|examination)\b"],
+                "diagnoses_interventions_outcomes": [r"\b(diagnos|treat|therap|intervention|outcome|recover|improv|resolv)\w*\b"],
+                "conclusion": [r"\b(conclusion|lesson|highlight|suggest|demonstrat|importance|important|should|recommend)\w*\b"],
             }
+            for key, patterns in cues.items():
+                self._merge_section_value(abstract, key, self._matching_sentences(text, patterns))
+
         elif section == "patient_information":
-            target_dict["patient_information"] = {
-                "age": 45 if "year-old" in text or "yo" in text else None,
-                "sex": "Female" if "female" in text.lower() or "woman" in text.lower() else ("Male" if "male" in text.lower() or "man" in text.lower() else None),
-                "chief_complaint": text,
-                "history": text,
-            }
+            age_match = re.search(
+                r"\b(?:(\d{1,3})\s*[-–— ]?years?[-–— ]?old|aged\s+(\d{1,3}))\b",
+                text,
+                re.IGNORECASE,
+            )
+            age = None
+            if age_match:
+                candidate = int(age_match.group(1) or age_match.group(2))
+                if 0 <= candidate <= 125:
+                    age = candidate
+
+            sex = None
+            if re.search(r"\b(female|woman|girl)\b", text, re.IGNORECASE):
+                sex = "Female"
+            elif re.search(r"\b(male|man|boy)\b", text, re.IGNORECASE):
+                sex = "Male"
+
+            patient = target_dict.get("patient_information")
+            if not isinstance(patient, dict):
+                patient = {}
+                target_dict["patient_information"] = patient
+            if age is not None:
+                patient["age"] = age
+            if sex is not None:
+                patient["sex"] = sex
+
+            chief = self._matching_sentences(
+                text,
+                [r"\b(presented|presentation|complaint|symptom|concern|pain|fever|seizure)\w*\b"],
+            )
+            history = self._matching_sentences(
+                text,
+                [r"\b(history|past|previous|prior|family|social|psychosocial|comorbid)\w*\b"],
+            )
+            self._merge_section_value(patient, "chief_complaint", chief)
+            self._merge_section_value(patient, "history", history)
+
         elif section == "diagnostic_assessment":
-            target_dict["diagnostic_assessment"] = {
-                "diagnostic_methods": text,
-                "differential_diagnosis": text,
-            }
+            diagnostic = target_dict.get("diagnostic_assessment")
+            if not isinstance(diagnostic, dict):
+                diagnostic = {}
+                target_dict["diagnostic_assessment"] = diagnostic
+            self._merge_section_value(diagnostic, "diagnostic_methods", text)
+            self._merge_section_value(
+                diagnostic,
+                "differential_diagnosis",
+                self._matching_sentences(
+                    text,
+                    [r"\b(differential|considered|excluded|rule[sd]? out|alternative diagnos)\w*\b"],
+                ),
+            )
+            self._merge_section_value(
+                diagnostic,
+                "challenges",
+                self._matching_sentences(
+                    text,
+                    [r"\b(challenge|delay|uncertain|difficult|atypical)\w*\b"],
+                ),
+            )
+
         elif section == "therapeutic_intervention":
-            target_dict["therapeutic_intervention"] = {
-                "treatment": text,
-                "administration": text,
-            }
+            intervention = target_dict.get("therapeutic_intervention")
+            if not isinstance(intervention, dict):
+                intervention = {}
+                target_dict["therapeutic_intervention"] = intervention
+            self._merge_section_value(intervention, "treatment", text)
+            self._merge_section_value(
+                intervention,
+                "administration",
+                self._matching_sentences(
+                    text,
+                    [
+                        r"\b\d+(?:\.\d+)?\s*(?:mg|g|mcg|µg|ml|units?|mg/kg|g/kg)\b",
+                        r"\b(daily|weekly|twice|intravenous|intravenously|oral|orally|route|duration)\b",
+                    ],
+                ),
+            )
+            self._merge_section_value(
+                intervention,
+                "changes",
+                self._matching_sentences(
+                    text,
+                    [r"\b(changed|switched|escalat|de-escalat|discontinued|stopped|because|due to)\w*\b"],
+                ),
+            )
+
         elif section == "follow_up_and_outcomes":
-            target_dict["follow_up_and_outcomes"] = {
-                "outcomes": text,
-                "adherence": text,
-                "adverse_events": text,
-            }
+            follow_up = target_dict.get("follow_up_and_outcomes")
+            if not isinstance(follow_up, dict):
+                follow_up = {}
+                target_dict["follow_up_and_outcomes"] = follow_up
+            self._merge_section_value(follow_up, "outcomes", text)
+            self._merge_section_value(
+                follow_up,
+                "adherence",
+                self._matching_sentences(
+                    text,
+                    [r"\b(adher|compliance|missed|completed|tolerat)\w*\b"],
+                ),
+            )
+            self._merge_section_value(
+                follow_up,
+                "adverse_events",
+                self._matching_sentences(
+                    text,
+                    [r"\b(adverse|complication|side effect|reaction|unanticipated)\w*\b"],
+                ),
+            )
+
         elif section == "discussion":
-            target_dict["discussion"] = {
-                "literature_review": text,
-                "strengths_and_limitations": text,
-                "take_away_lessons": text,
-            }
+            discussion = target_dict.get("discussion")
+            if not isinstance(discussion, dict):
+                discussion = {}
+                target_dict["discussion"] = discussion
+            self._merge_section_value(
+                discussion,
+                "literature_review",
+                self._matching_sentences(
+                    text,
+                    [r"\b(literature|study|studies|reported|previous|evidence|reference|et al)\b"],
+                ),
+            )
+            self._merge_section_value(
+                discussion,
+                "strengths_and_limitations",
+                self._matching_sentences(text, [r"\b(strength|limitation)\w*\b"]),
+            )
+            self._merge_section_value(
+                discussion,
+                "scientific_rationale",
+                self._matching_sentences(
+                    text,
+                    [r"\b(mechanism|rationale|because|pathophysi|mediated|supports)\w*\b"],
+                ),
+            )
+            self._merge_section_value(
+                discussion,
+                "take_away_lessons",
+                self._matching_sentences(
+                    text,
+                    [r"\b(lesson|take-away|takeaway|conclusion|should|recommend|highlight|importance|important|warrant)\w*\b"],
+                ),
+            )
+
         elif section == "timeline":
             target_dict["timeline"] = text
         else:
@@ -1079,7 +1260,7 @@ def format_markdown_report(report: CAREValidationReport) -> str:
         f"# CARE Case Report Validation Audit",
         f"**Manuscript Title:** {report.manuscript_title}",
         f"**Audit Timestamp:** `{report.timestamp}`",
-        f"**Overall Compliance Score:** **{report.overall_compliance_score:.1f}%** ({report.compliance_tier.value})",
+        f"**Heuristic Checklist Coverage:** **{report.overall_compliance_score:.1f}%** ({report.compliance_tier.value})",
         "",
         "## Summary Metrics",
         f"- **Total Checklist Items:** {report.items_total}",
@@ -1089,7 +1270,7 @@ def format_markdown_report(report: CAREValidationReport) -> str:
         f"- **Timeline Valid:** {'Yes :white_check_mark:' if report.timeline_valid else 'Deficient :warning:'}",
         "",
         "## Section Scores",
-        "| Section | Compliance (%) |",
+        "| Section | Coverage (%) |",
         "| :--- | :--- |",
     ]
     for sec, score in report.section_scores.items():
@@ -1114,6 +1295,7 @@ def format_markdown_report(report: CAREValidationReport) -> str:
         notes = " ".join(item.findings)
         if item.recommendations:
             notes += " **Rec:** " + " ".join(item.recommendations)
+        notes = notes.replace("|", "\\|").replace("\n", " ")
         lines.append(f"| {item.item_id} | {item.section} | {status_icon} | {item.score * 100:.0f}% | {notes} |")
 
     if report.actionable_checklist:

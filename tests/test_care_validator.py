@@ -64,11 +64,17 @@ class TestCAREValidator(unittest.TestCase):
 
     # 3. Section 2 - Keywords
     def test_keywords_valid_range(self):
-        data = {"keywords": ["Hepatitis", "Immunology", "Prednisone"]}
+        data = {"keywords": ["Hepatitis", "Immunology", "Case report"]}
         report = self.validator.validate(data)
         item2 = next(it for it in report.item_evaluations if it.item_id == "2")
         self.assertEqual(item2.status, ComplianceStatus.MET)
         self.assertEqual(item2.score, 1.0)
+
+    def test_keywords_without_case_report_keyword_is_partial(self):
+        data = {"keywords": ["Hepatitis", "Immunology", "Prednisone"]}
+        report = self.validator.validate(data)
+        item2 = next(it for it in report.item_evaluations if it.item_id == "2")
+        self.assertEqual(item2.status, ComplianceStatus.PARTIALLY_MET)
 
     def test_keywords_single_keyword(self):
         data = {"keywords": ["Hepatitis"]}
@@ -77,7 +83,7 @@ class TestCAREValidator(unittest.TestCase):
         self.assertEqual(item2.status, ComplianceStatus.PARTIALLY_MET)
 
     def test_keywords_comma_separated_string(self):
-        data = {"keywords": "Liver, Jaundice, Biopsy, Steroids"}
+        data = {"keywords": "Liver, Jaundice, Biopsy, Case report"}
         report = self.validator.validate(data)
         item2 = next(it for it in report.item_evaluations if it.item_id == "2")
         self.assertEqual(item2.status, ComplianceStatus.MET)
@@ -170,6 +176,17 @@ class TestCAREValidator(unittest.TestCase):
         inversion_alerts = [a for a in report.alerts if a.category == "CHRONOLOGY_INVERSION"]
         self.assertGreater(len(inversion_alerts), 0)
 
+    def test_timeline_day_zero_is_not_dropped(self):
+        data = {
+            "timeline": [
+                {"relative_day": 0, "event": "Presentation"},
+                {"relative_day": -1, "event": "Symptoms began"},
+            ]
+        }
+        report = self.validator.validate(data)
+        self.assertFalse(report.timeline_valid)
+        self.assertTrue(any(a.category == "CHRONOLOGY_INVERSION" for a in report.alerts))
+
     def test_timeline_sparse_entries(self):
         data = {
             "timeline": [
@@ -193,6 +210,11 @@ class TestCAREValidator(unittest.TestCase):
     def test_phi_email_and_phone_detection(self):
         alerts = PHISecurityAuditor.audit_text("Contact: doctor@hospital.org or 555-123-4567.")
         self.assertEqual(len(alerts), 2)
+
+    def test_phi_screen_can_be_disabled(self):
+        validator = CARECaseReportValidator(phi_strict=False)
+        report = validator.validate({"patient_information": {"history": "MRN: 12345678"}})
+        self.assertEqual(report.phi_violations, [])
 
     def test_clean_text_no_phi_alerts(self):
         alerts = PHISecurityAuditor.audit_text("A 55-year-old female presented with abdominal pain.")
@@ -248,7 +270,7 @@ class TestCAREValidator(unittest.TestCase):
     def test_markdown_manuscript_parsing(self):
         md_text = """
 # Rare Presentation of Takotsubo Cardiomyopathy: A Case Report
-Keywords: Takotsubo, Cardiomyopathy, Echocardiography
+Keywords: Takotsubo, Cardiomyopathy, Case report
 
 ## Abstract
 A 68-year-old woman presented with apical ballooning after emotional stress. Treated with ACE inhibitors with recovery.
@@ -281,8 +303,21 @@ This case demonstrates reversible ventricular dysfunction. Clinicians must rule 
 Written informed consent was obtained from the patient.
 """
         report = self.validator.validate(md_text)
-        self.assertGreaterEqual(report.overall_compliance_score, 75.0)
         self.assertEqual(report.manuscript_title, "Rare Presentation of Takotsubo Cardiomyopathy: A Case Report")
+
+        item5a = next(it for it in report.item_evaluations if it.item_id == "5a")
+        self.assertTrue(any("Age=68" in finding for finding in item5a.findings))
+
+        # Free-text parsing must not award unrelated sub-items merely because
+        # their parent section is present.
+        item5c = next(it for it in report.item_evaluations if it.item_id == "5c")
+        item8c = next(it for it in report.item_evaluations if it.item_id == "8c")
+        item10c = next(it for it in report.item_evaluations if it.item_id == "10c")
+        item10d = next(it for it in report.item_evaluations if it.item_id == "10d")
+        self.assertEqual(item5c.status, ComplianceStatus.UNMET)
+        self.assertEqual(item8c.status, ComplianceStatus.UNMET)
+        self.assertEqual(item10c.status, ComplianceStatus.UNMET)
+        self.assertEqual(item10d.status, ComplianceStatus.MET)
 
     # 12. Serialization & Formatting
     def test_report_dict_serialization(self):
@@ -297,7 +332,7 @@ Written informed consent was obtained from the patient.
         report = self.validator.validate(self.sample_report)
         md = format_markdown_report(report)
         self.assertIn("# CARE Case Report Validation Audit", md)
-        self.assertIn("Overall Compliance Score", md)
+        self.assertIn("Heuristic Checklist Coverage", md)
         self.assertIn("CARE 2013 Item-by-Item Checklist Breakdown", md)
 
     def test_invalid_payload_type(self):

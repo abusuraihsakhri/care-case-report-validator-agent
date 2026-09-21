@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Browser-based CARE 2013 checklist review for case-report drafts.">
+  <title>CARE Case Report Checklist Reviewer</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script defer src="https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js"></script>
+  <script defer src="./app.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">C</div>
+        <div>
+          <h1>CARE Checklist Reviewer</h1>
+          <p>Rule-based review against CARE 2013 reporting criteria</p>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <span id="runtimeStatus" class="status-pill" role="status">Loading Python…</span>
+        <button id="themeToggle" class="icon-button" type="button" aria-label="Switch color theme">◐</button>
+      </div>
+    </header>
+
+    <nav class="mobile-tabs" aria-label="Workspace panels">
+      <button class="tab-button active" type="button" data-panel="inputPanel">Input</button>
+      <button class="tab-button" type="button" data-panel="resultsPanel">Results</button>
+    </nav>
+
+    <main class="workspace">
+      <section id="inputPanel" class="panel input-panel active-panel" aria-labelledby="inputHeading">
+        <div class="panel-header">
+          <div>
+            <h2 id="inputHeading">Case report draft</h2>
+            <p>Paste JSON, Markdown, or plain text. Processing stays in this browser session.</p>
+          </div>
+          <div class="compact-actions">
+            <button id="loadSampleButton" type="button" class="button secondary">Sample</button>
+            <label class="button secondary file-button">
+              Open file
+              <input id="fileInput" type="file" accept=".json,.md,.markdown,.txt,application/json,text/plain,text/markdown">
+            </label>
+            <button id="clearButton" type="button" class="button ghost">Clear</button>
+          </div>
+        </div>
+
+        <textarea id="manuscriptInput" spellcheck="false" aria-label="Case report content" placeholder='Paste a structured CARE JSON object or a manuscript draft here.'></textarea>
+
+        <div class="action-row">
+          <div class="privacy-note">
+            <strong>Local processing.</strong> Draft text is not uploaded by this page. Theme preference is the only value stored locally.
+          </div>
+          <button id="analyzeButton" class="button primary" type="button" disabled>Analyze report</button>
+        </div>
+      </section>
+
+      <section id="resultsPanel" class="panel results-panel" aria-labelledby="resultsHeading">
+        <div class="panel-header results-header">
+          <div>
+            <h2 id="resultsHeading">Review results</h2>
+            <p id="resultSubtitle">Run an analysis to see checklist coverage and item-level findings.</p>
+          </div>
+          <div id="exportActions" class="compact-actions hidden">
+            <button id="downloadJsonButton" type="button" class="button secondary">JSON</button>
+            <button id="downloadMarkdownButton" type="button" class="button secondary">Markdown</button>
+          </div>
+        </div>
+
+        <div id="emptyState" class="empty-state">
+          <div class="empty-icon" aria-hidden="true">✓</div>
+          <h3>No analysis yet</h3>
+          <p>The score is a repository-specific checklist-coverage heuristic, not a CARE-defined compliance grade or publication-readiness decision.</p>
+        </div>
+
+        <div id="resultsContent" class="results-content hidden" aria-live="polite">
+          <div id="metricGrid" class="metric-grid"></div>
+          <div id="alertBox" class="alert-box hidden"></div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Section</th>
+                  <th>Status</th>
+                  <th>Finding</th>
+                </tr>
+              </thead>
+              <tbody id="resultsTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="errorBox" class="error-box hidden" role="alert"></div>
+      </section>
+    </main>
+  </div>
+</body>
+</html>

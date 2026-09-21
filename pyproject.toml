@@ -3,25 +3,27 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "care-case-report-validator-engine"
-version = "2.0.0"
-description = "CARE-Validator Pro: Clinical Case Report Manuscript Guideline & Completeness Engine"
+name = "care-case-report-validator-agent"
+version = "2.1.0"
+description = "Rule-based CARE 2013 checklist review for clinical case-report drafts"
 readme = "README.md"
-authors = [{ name = "Dr. Abu Suraih Sakhri", email = "abusuraih@example.com" }]
 license = { text = "MIT" }
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = []
 
 [project.scripts]
-care-case-report-validator-engine = "care_case_report_validator_agent.cli:main"
+care-case-report-validator = "cli:main"
+care-case-report-validator-engine = "cli:main"
 
 [project.urls]
-Homepage = "https://github.com/abusuraihsakhri/care-case-report-validator-engine"
-Repository = "https://github.com/abusuraihsakhri/care-case-report-validator-engine.git"
+Homepage = "https://github.com/abusuraihsakhri/care-case-report-validator-agent"
+Repository = "https://github.com/abusuraihsakhri/care-case-report-validator-agent.git"
+
+[tool.setuptools]
+py-modules = ["care_validator", "cli"]
