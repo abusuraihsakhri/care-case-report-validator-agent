@@ -36,6 +36,12 @@ jobs:
       - name: Check browser JavaScript syntax
         run: node --check app.js
 
+      - name: Verify Pyodide runtime
+        if: matrix.python-version == '3.12'
+        run: |
+          npm install --no-save --ignore-scripts pyodide@0.29.5
+          node tests/pyodide_smoke.mjs
+
       - name: Run test suite
         run: python -m pytest -q
 
