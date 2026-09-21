@@ -1,5 +1,7 @@
 # CARE Case Report Checklist Reviewer
 
+### [Open the Live Application →](https://abusuraihsakhri.github.io/care-case-report-validator-agent/)
+
 Rule-based tools for reviewing case-report drafts against the **CARE 2013** reporting checklist. The repository provides a Python API, command-line interface, batch CSV workflow, and a browser interface that runs the same Python validator locally through Pyodide.
 
 > **Scope:** the generated percentage and tier are repository-specific checklist-coverage heuristics. CARE does not define this scoring system. Results are not a clinical validation, publication-readiness decision, or privacy/de-identification certification.
