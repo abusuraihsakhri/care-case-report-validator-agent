@@ -47,3 +47,28 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify deployed application
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          fetch() {
+            curl --fail --silent --show-error --location \
+              --retry 10 --retry-delay 2 --retry-all-errors "$1"
+          }
+
+          fetch "${PAGE_URL}" > /tmp/index.html
+          fetch "${PAGE_URL}styles.css" > /tmp/styles.css
+          fetch "${PAGE_URL}app.js" > /tmp/app.js
+          fetch "${PAGE_URL}care_validator.py" > /tmp/care_validator.py
+          fetch "${PAGE_URL}sample_care_report.json" > /tmp/sample.json
+
+          grep -q "<title>CARE Case Report Checklist Reviewer</title>" /tmp/index.html
+          grep -q "Analyze report" /tmp/index.html
+          grep -q 'PYODIDE_VERSION = "0.29.5"' /tmp/app.js
+          grep -q "browser_validate" /tmp/app.js
+          grep -q "class CARECaseReportValidator" /tmp/care_validator.py
+          python -m json.tool /tmp/sample.json > /dev/null
+
+          fetch "https://cdn.jsdelivr.net/pyodide/v0.29.5/full/pyodide.js" > /dev/null
