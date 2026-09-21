@@ -33,6 +33,9 @@ jobs:
       - name: Compile Python sources
         run: python -m compileall -q care_validator.py cli.py
 
+      - name: Check browser JavaScript syntax
+        run: node --check app.js
+
       - name: Run test suite
         run: python -m pytest -q
 
